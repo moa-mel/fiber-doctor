@@ -1,0 +1,56 @@
+import { Command } from 'commander';
+import chalk from 'chalk';
+import 'process';
+import { FiberClient } from '../rpc/fiber-client';
+import { NodeDiagnostics } from '../diagnostics/node';
+import { ChannelDiagnostics } from '../diagnostics/channels';
+import { DEFAULT_RPC_URL, FIBER_RPC_URL_ENV_VAR } from '../config';
+
+export function makeDiagnoseCommand(): Command {
+  const command = new Command('diagnose');
+
+  command
+    .description('Execute a real-time status and health scan of the running Fiber node architecture')
+    .action(async () => {
+      const url = process.env[FIBER_RPC_URL_ENV_VAR] || DEFAULT_RPC_URL;
+      const client = new FiberClient(url);
+      const diagnostics = new NodeDiagnostics(client);
+      const channelDiag = new ChannelDiagnostics(client);
+
+      console.log(chalk.cyan(`⚡ Running Suite on Core Node Protocol Endpoint: ${url}\n`));
+
+      const report = await diagnostics.runSuite();
+      const channelMetrics = await channelDiag.getMetrics();
+
+      console.log(chalk.bold('--- Node Health Report ---'));
+      
+      const isOnline = report.checks.some(c => c.id === 'NODE_ONLINE');
+      console.log(`Node Status:  ${isOnline ? chalk.green('✔ Running') : chalk.red('✖ Offline')}`);
+      
+      const openChannelsColor = channelMetrics.open > 0 ? chalk.green : chalk.yellow;
+      console.log(`Channels:     ${openChannelsColor(`${channelMetrics.open} open`)}, ${channelMetrics.pending} pending`);
+      
+      const failedChecks = report.checks.filter(c => c.status === 'fail' || c.status === 'warn');
+      console.log(`Alerts Flagged: ${failedChecks.length === 0 ? chalk.green('None') : chalk.yellow(failedChecks.length)}`);
+
+      // Health score display
+      let scoreColor = chalk.green;
+      if (report.score < 80) scoreColor = chalk.yellow;
+      if (report.score < 50) scoreColor = chalk.red;
+      console.log(`Health Score: ${scoreColor(`${report.score}/100`)}\n`);
+
+      if (failedChecks.length > 0) {
+        console.log(chalk.bold.yellow('Action Summary Required:'));
+        failedChecks.forEach(c => {
+          const sym = c.status === 'fail' ? chalk.red('✖') : chalk.yellow('⚠');
+          console.log(`  ${sym} [${c.component.toUpperCase()}] ${c.title}`);
+          if (c.problem) console.log(chalk.dim(`     Context: ${c.problem}`));
+        });
+        console.log('');
+      } else {
+        console.log(chalk.green('✔ All evaluated runtime primitives conform to networking specifications!\n'));
+      }
+    });
+
+  return command;
+}
