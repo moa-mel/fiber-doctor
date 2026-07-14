@@ -2,16 +2,29 @@ import { DiagnosticResult } from '../diagnostics/node';
 
 export function checkOfflinePeers(peers: any[], channels: any[]): DiagnosticResult[] {
   const results: DiagnosticResult[] = [];
-  const activePeerPubkeys = new Set(peers.map(p => p.pubkey || p.peer_id));
+
+  // Filter for peers that are explicitly marked as connected.
+  const activePeerPubkeys = new Set(
+    peers.filter(p => p.connected === true).map(p => p.pubkey || p.peer_id)
+  );
+
+  // Use the same robust state checking we implemented for channel metrics.
+  const READY_STATES = new Set([
+    'Open',
+    'CHANNEL_READY',
+    'ChannelReady'
+  ]);
 
   for (const channel of channels) {
     const peerPubkey = channel.pubkey || channel.peer_id;
-    if (channel.state === 'Open' && !activePeerPubkeys.has(peerPubkey)) {
+    const stateName = channel.state?.state_name || channel.state;
+
+    if (READY_STATES.has(stateName) && !activePeerPubkeys.has(peerPubkey)) {
       results.push({
         id: 'ERR_PEER_DISCONNECTED',
         status: 'warn',
         component: 'peers',
-        title: `Inactive Channel Connection: Peer ${peerPubkey.substring(0, 8)}...`,
+        title: `Inactive Channel Connection: Peer ${typeof peerPubkey === 'string' ? peerPubkey.substring(0, 8) : 'Unknown'}...`,
         problem: 'Structural channel state is designated open, but the remote node connection is dead.',
         reason: 'The node endpoint is currently unreachable or has terminated its P2P handshake with your environment.',
         educationalExplanation: 'Fiber routing mechanisms require active network sockets across all intermediary channels. If an open channel partner logs offline, its locked capacity becomes unusable for multi-hop pathfinding.',
