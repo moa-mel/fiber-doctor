@@ -29,13 +29,13 @@ export class FiberClient {
       });
       throw new Error(`${method}: ${data.error.message}`);
     }
-    // Normalize wrapped responses centrally. If the result is an object with a single key
-    // (e.g., { "channels": [...] }), return the value of that key. Otherwise, return the result directly.
+    // Normalize wrapped responses. If the result is an object containing a key
+    // that is the plural form of the method name (e.g., list_peers -> peers), return that array.
     const result = data.result;
     if (result && typeof result === 'object' && !Array.isArray(result)) {
-      const keys = Object.keys(result);
-      if (keys.length === 1) {
-        return result[keys[0]] ?? [];
+      const expectedKey = method.replace('list_', ''); // e.g., 'list_peers' -> 'peers'
+      if (expectedKey in result) {
+        return result[expectedKey] ?? [];
       }
     }
     return result ?? [];
