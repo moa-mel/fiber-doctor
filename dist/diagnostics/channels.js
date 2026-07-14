@@ -7,8 +7,17 @@ class ChannelDiagnostics {
     }
     async getMetrics() {
         const channels = await this.client.listChannels().catch(() => []);
-        const open = channels.filter(c => c.state === 'Open').length;
-        const pending = channels.filter(c => c.state !== 'Open').length;
+        // Set of states that are considered 'open' or 'ready' for use.
+        const READY_STATES = new Set([
+            'Open',
+            'CHANNEL_READY', // As seen in Fiber v0.9.0-rc7
+            'ChannelReady' // Adding case-variation for robustness
+        ]);
+        const open = channels.filter((c) => {
+            const stateName = c.state?.state_name || c.state; // Handle both nested and flat state structures
+            return READY_STATES.has(stateName);
+        }).length;
+        const pending = channels.length - open;
         return { total: channels.length, open, pending };
     }
 }
