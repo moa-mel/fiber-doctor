@@ -4,6 +4,7 @@ import 'process';
 import { FiberClient } from '../rpc/fiber-client';
 import { NodeDiagnostics } from '../diagnostics/node';
 import { ChannelDiagnostics } from '../diagnostics/channels';
+import { checkCkbIndexerConnectivity } from '../rules/ckb-indexer';
 import { DEFAULT_RPC_URL, FIBER_RPC_URL_ENV_VAR } from '../config';
 
 export function makeDiagnoseCommand(): Command {
@@ -21,6 +22,13 @@ export function makeDiagnoseCommand(): Command {
       console.log(chalk.cyan(`⚡ Running Suite on Core Node Protocol Endpoint: ${url}\n`));
 
       try {
+        // First, check external connectivity independent of the node itself.
+        const indexerCheck = await checkCkbIndexerConnectivity();
+        if (indexerCheck) {
+          // Push this check into the main report later. For now, we can log it if needed.
+          // This helps diagnose issues even if the node itself is unreachable.
+        }
+
         const report = await diagnostics.runSuite();
         const channelMetrics = await channelDiag.getMetrics();
 
@@ -29,6 +37,10 @@ export function makeDiagnoseCommand(): Command {
         const isOnline = report.checks.some(c => c.id === 'NODE_ONLINE' && c.status === 'pass');
         console.log(`Node Status:  ${isOnline ? chalk.green('✔ Running') : chalk.red('✖ Offline')}`);
         
+        if (indexerCheck) {
+          report.checks.push(indexerCheck);
+        }
+
         const openChannelsColor = channelMetrics.open > 0 ? chalk.green : chalk.yellow;
         console.log(`Channels:     ${openChannelsColor(`${channelMetrics.open} open`)}, ${channelMetrics.pending} pending`);
         
@@ -55,6 +67,8 @@ export function makeDiagnoseCommand(): Command {
       } catch (error: any) {
         // If we can't connect at all, generate a synthetic failure report
         // for a consistent user experience.
+        console.error("DEBUG:", error);
+
         console.log(chalk.bold('--- Node Health Report ---'));
         console.log(`Node Status:  ${chalk.red('✖ Offline')}`);
         console.log(`Channels:     ${chalk.yellow('0 open')}, 0 pending`);
@@ -62,14 +76,26 @@ export function makeDiagnoseCommand(): Command {
         console.log(`Health Score: ${chalk.red('0/100')}\n`);
 
         console.log(chalk.bold.yellow('Action Summary Required:'));
-        const syntheticFailure = {
-          component: 'RPC',
-          title: 'Cannot Connect to Node',
-          problem: `Failed to establish a connection with the Fiber node at ${url}. The RPC endpoint is unreachable.`
-        };
+
+        let syntheticFailure;
+        if (error.message?.includes('ECONNREFUSED')) {
+          syntheticFailure = {
+            component: 'RPC',
+            title: 'Cannot Connect to Node',
+            problem: `Failed to establish a connection with the Fiber node at ${url}. The RPC endpoint is unreachable.`
+          };
+        } else {
+          syntheticFailure = {
+            component: 'DIAGNOSTICS',
+            title: 'Internal Diagnostics Failure',
+            problem: `The tool failed unexpectedly. The error was: ${error.message}`
+          };
+        }
+
         console.log(`  ${chalk.red('✖')} [${syntheticFailure.component.toUpperCase()}] ${syntheticFailure.title}`);
         console.log(chalk.dim(`     Context: ${syntheticFailure.problem}`));
-        console.log(chalk.dim(`\nEnsure your node is running and the RPC URL is correct.`));
+        console.log(chalk.dim(`
+Please check the debug output above for the full error details and report it as a bug if necessary.`));
       }
     });
 

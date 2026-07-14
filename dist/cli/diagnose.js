@@ -10,6 +10,7 @@ require("process");
 const fiber_client_1 = require("../rpc/fiber-client");
 const node_1 = require("../diagnostics/node");
 const channels_1 = require("../diagnostics/channels");
+const ckb_indexer_1 = require("../rules/ckb-indexer");
 const config_1 = require("../config");
 function makeDiagnoseCommand() {
     const command = new commander_1.Command('diagnose');
@@ -23,11 +24,20 @@ function makeDiagnoseCommand() {
         const channelDiag = new channels_1.ChannelDiagnostics(client);
         console.log(chalk_1.default.cyan(`⚡ Running Suite on Core Node Protocol Endpoint: ${url}\n`));
         try {
+            // First, check external connectivity independent of the node itself.
+            const indexerCheck = await (0, ckb_indexer_1.checkCkbIndexerConnectivity)();
+            if (indexerCheck) {
+                // Push this check into the main report later. For now, we can log it if needed.
+                // This helps diagnose issues even if the node itself is unreachable.
+            }
             const report = await diagnostics.runSuite();
             const channelMetrics = await channelDiag.getMetrics();
             console.log(chalk_1.default.bold('--- Node Health Report ---'));
             const isOnline = report.checks.some(c => c.id === 'NODE_ONLINE' && c.status === 'pass');
             console.log(`Node Status:  ${isOnline ? chalk_1.default.green('✔ Running') : chalk_1.default.red('✖ Offline')}`);
+            if (indexerCheck) {
+                report.checks.push(indexerCheck);
+            }
             const openChannelsColor = channelMetrics.open > 0 ? chalk_1.default.green : chalk_1.default.yellow;
             console.log(`Channels:     ${openChannelsColor(`${channelMetrics.open} open`)}, ${channelMetrics.pending} pending`);
             const failedChecks = report.checks.filter(c => c.status === 'fail' || c.status === 'warn');
@@ -56,20 +66,32 @@ function makeDiagnoseCommand() {
         catch (error) {
             // If we can't connect at all, generate a synthetic failure report
             // for a consistent user experience.
+            console.error("DEBUG:", error);
             console.log(chalk_1.default.bold('--- Node Health Report ---'));
             console.log(`Node Status:  ${chalk_1.default.red('✖ Offline')}`);
             console.log(`Channels:     ${chalk_1.default.yellow('0 open')}, 0 pending`);
             console.log(`Alerts Flagged: ${chalk_1.default.yellow(1)}`);
             console.log(`Health Score: ${chalk_1.default.red('0/100')}\n`);
             console.log(chalk_1.default.bold.yellow('Action Summary Required:'));
-            const syntheticFailure = {
-                component: 'RPC',
-                title: 'Cannot Connect to Node',
-                problem: `Failed to establish a connection with the Fiber node at ${url}. The RPC endpoint is unreachable.`
-            };
+            let syntheticFailure;
+            if (error.message?.includes('ECONNREFUSED')) {
+                syntheticFailure = {
+                    component: 'RPC',
+                    title: 'Cannot Connect to Node',
+                    problem: `Failed to establish a connection with the Fiber node at ${url}. The RPC endpoint is unreachable.`
+                };
+            }
+            else {
+                syntheticFailure = {
+                    component: 'DIAGNOSTICS',
+                    title: 'Internal Diagnostics Failure',
+                    problem: `The tool failed unexpectedly. The error was: ${error.message}`
+                };
+            }
             console.log(`  ${chalk_1.default.red('✖')} [${syntheticFailure.component.toUpperCase()}] ${syntheticFailure.title}`);
             console.log(chalk_1.default.dim(`     Context: ${syntheticFailure.problem}`));
-            console.log(chalk_1.default.dim(`\nEnsure your node is running and the RPC URL is correct.`));
+            console.log(chalk_1.default.dim(`
+Please check the debug output above for the full error details and report it as a bug if necessary.`));
         }
     });
     return command;

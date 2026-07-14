@@ -85,6 +85,7 @@ function makeReportCommand() {
             console.log(chalk_1.default.white(`Output location: ${chalk_1.default.bold(outputPath)}\n`));
         }
         catch (error) {
+            console.error(chalk_1.default.red(`\n✖ Critical failure generating markdown artifact: ${error.message}`));
             // If the node is offline, generate a report indicating that.
             const timestamp = new Date().toISOString();
             let md = `# Fiber Node Diagnostic Report\n\n`;
