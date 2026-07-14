@@ -29,14 +29,21 @@ export class FiberClient {
       });
       throw new Error(`${method}: ${data.error.message}`);
     }
-    return data.result;
+    // Normalize wrapped responses centrally. If the result is an object with a single key
+    // (e.g., { "channels": [...] }), return the value of that key. Otherwise, return the result directly.
+    const result = data.result;
+    if (result && typeof result === 'object' && !Array.isArray(result)) {
+      const keys = Object.keys(result);
+      if (keys.length === 1) {
+        return result[keys[0]] ?? [];
+      }
+    }
+    return result ?? [];
   }
 
   async listPayments(): Promise<any[]> {
     // This method expects a parameter object inside a positional array.
-    // We normalize the response to ensure it's always an array.
-    const result = await this.call('list_payments', [{}]);
-    return Array.isArray(result) ? result : result.payments ?? [];
+    return this.call('list_payments', [{}]);
   }
 
   async getPayment(paymentHash: string): Promise<any> {
@@ -45,22 +52,18 @@ export class FiberClient {
 
   async listChannels(): Promise<any[]> {
     // Per API documentation, this method expects filter options inside a positional array.
-    // We also normalize the response to handle potentially wrapped objects.
-    const result = await this.call('list_channels', [{
+    return this.call('list_channels', [{
       include_closed: false,
       only_pending: false,
     }]);
-    return Array.isArray(result) ? result : result.channels ?? [];
   }
 
   async listPeers(): Promise<any[]> {
     // This method expects positional params and may return a wrapped response.
-    const result = await this.call('list_peers', []);
-    return Array.isArray(result) ? result : result.peers ?? [];
+    return this.call('list_peers', []);
   }
 
   async nodeInfo(): Promise<any> {
-    const result = await this.call('node_info', []);
-    return Array.isArray(result) ? result[0] : result;
+    return this.call('node_info', []);
   }
 }

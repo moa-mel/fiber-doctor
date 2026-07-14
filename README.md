@@ -1,69 +1,58 @@
-# Fiber Doctor 🩺
+# Fiber Doctor
 
-A structural analysis diagnostic and educational CLI utility for Nervos CKB Fiber Network Node operations.
-
-`fiber-doctor` is a command-line tool designed to help developers and node operators diagnose issues, understand errors, and monitor the health of their Fiber nodes on the CKB network.
+`fiber-doctor` is a command-line diagnostic tool designed to run real-time health checks, generate reports, and explain errors for a running Fiber node.
 
 ## Installation
 
-```bash
-npm install -g fiber-doctor
-```
-
-## Configuration
-
-The CLI communicates with your Fiber node via its RPC endpoint. By default, it attempts to connect to `http://127.0.0.1:8227`.
-
-You can override this by setting the `FIBER_RPC_URL` environment variable:
-
-```bash
-export FIBER_RPC_URL=http://your-node-ip:8227
-```
+1.  Clone the repository.
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
+3.  Build the project from the TypeScript source:
+    ```bash
+    npm run build
+    ```
 
 ## Usage
 
-The `fiber-doctor` CLI provides several commands to inspect your node.
+The tool is run via the `fiber-doctor` command, which is made available in your path by the `bin` field in `package.json`.
 
 ### `diagnose`
 
-Execute a real-time status and health scan of the running Fiber node architecture. This command provides a quick overview of your node's status, channel metrics, and any flagged alerts.
+Execute a real-time status and health scan of the running Fiber node. It provides an immediate summary of the node's operational status, channel health, and any flagged alerts.
 
-**Usage:**
 ```bash
-fiber-doctor diagnose
+fiber-doctor diagnose [options]
 ```
 
-**Example Output:**
-```
-⚡ Running Suite on Core Node Protocol Endpoint: http://127.0.0.1:8227
+**Options:**
 
---- Node Health Report ---
-Node Status:  ✔ Running
-Channels:     1 open, 0 pending
-Alerts Flagged: None
-Health Score: 100/100
+*   `--rpc-url <url>`: Specify the RPC URL of the Fiber node to connect to. Defaults to `http://127.0.0.1:8227`. This can also be set via the `FIBER_RPC_URL` environment variable.
 
-✔ All evaluated runtime primitives conform to networking specifications!
-```
+**Example:**
 
-### `explain`
-
-Translate and explain recent low-level Fiber errors into plain English. This is useful for understanding why a payment failed.
-
-**Usage:**
 ```bash
-# Explain the last failed payment
-fiber-doctor explain --last-error
-
-# Explain a failure by payment hash
-fiber-doctor explain --payment-hash <hash>
+fiber-doctor diagnose --rpc-url http://127.0.0.1:8227
 ```
 
 ### `report`
 
-Generate a structured Markdown diagnostic report named `fiber-report.md`. This file is saved in your current working directory and is useful for logging or creating GitHub issues.
+Generate a structured Markdown diagnostic report (`fiber-report.md`) suitable for sharing in logs or GitHub issues. This provides a more detailed, shareable version of the `diagnose` output.
 
-**Usage:**
 ```bash
 fiber-doctor report
 ```
+
+### `explain`
+
+Translate and explain recent low-level Fiber errors into plain English. This is primarily used for diagnosing failed payments.
+
+```bash
+fiber-doctor explain [options]
+```
+
+**Options:**
+
+*   `--last-error`: Analyze the most recent failed payment found in the node's history.
+*   `--payment-hash <hash>`: Analyze a specific failed payment by its hash.

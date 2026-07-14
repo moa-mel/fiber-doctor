@@ -45,9 +45,7 @@ export class NodeDiagnostics {
       throw error;
     }
 
-    // The `listPeers` method in this node version returns an object like `{ peers: [...] }`.
-    // We need to extract the array.
-    const peers = await this.client.listPeers().catch((err) => {
+    const peers = await this.client.listPeers().catch(err => {
       console.error("DEBUG: Failed to list peers", err); // Keep for debugging
       checks.push({
         id: 'PEER_FETCH_FAIL',
@@ -60,8 +58,7 @@ export class NodeDiagnostics {
       return [];
     });
 
-    // Assuming listChannels might also return a wrapped object, though the error was on peers.
-    const channels = await this.client.listChannels().catch((err) => {
+    const channels = await this.client.listChannels().catch(err => {
       console.error("DEBUG: Failed to list channels", err); // Keep for debugging
       checks.push({
         id: 'CHANNEL_FETCH_FAIL',
