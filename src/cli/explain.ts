@@ -13,7 +13,8 @@ export function makeExplainCommand(): Command {
     .option('--last-error', 'Analyze the most recent failed payment error')
     .option('--payment-hash <hash>', 'Analyze a specific failed payment hash')
     .action(async (options: { lastError?: boolean; paymentHash?: string }) => {
-      const rpcClient = new FiberClient(process.env[FIBER_RPC_URL_ENV_VAR] || DEFAULT_RPC_URL);
+      const globalOptions = explain.parent?.opts() || {};
+      const rpcClient = new FiberClient(globalOptions.rpcUrl ?? process.env[FIBER_RPC_URL_ENV_VAR] ?? DEFAULT_RPC_URL);
       const paymentDiag = new PaymentDiagnostics(rpcClient);
 
       try {
@@ -35,6 +36,20 @@ export function makeExplainCommand(): Command {
 
         if (!targetHash) {
           console.log(chalk.red('\n✖ Error: Provide options --last-error or --payment-hash <hash>.'));
+          return;
+        }
+
+        // Verify the payment hash corresponds to a failed payment before explaining.
+        const paymentDetails = await rpcClient.getPayment(targetHash);
+        if (!paymentDetails) {
+          console.log(chalk.red(`\n✖ Error: No payment found with hash: ${targetHash}`));
+          return;
+        }
+
+        const status = paymentDetails.status?.toLowerCase();
+        if (status !== 'failed') {
+          console.log(chalk.green(`\n✔ Payment with hash ${targetHash} did not fail.`));
+          console.log(`   - Status: ${paymentDetails.status}`);
           return;
         }
 

@@ -54,7 +54,17 @@ export function makeReportCommand(): Command {
         console.log(chalk.white(`Output location: ${chalk.bold(outputPath)}\n`));
 
       } catch (error: any) {
-        console.error(chalk.red(`\n✖ Critical failure generating markdown artifact: ${error.message}`));
+        // If the node is offline, generate a report indicating that.
+        const timestamp = new Date().toISOString();
+        let md = `# Fiber Node Diagnostic Report\n\n`;
+        md += `**Generated On:** ${timestamp}  \n`;
+        md += `**Target RPC Endpoint:** \`${url}\`  \n\n`;
+        md += `## 🟥 [FAIL] Cannot Connect to Node\n\n`;
+        md += `* **Problem:** Failed to establish a connection with the Fiber node at ${url}. The RPC endpoint is unreachable.\n`;
+        md += `* **Actionable Steps:**\n  - [ ] Ensure your Fiber node process is running.\n  - [ ] Verify the RPC URL is correct and accessible.\n`;
+        const outputPath = path.join(process.cwd(), 'fiber-report.md');
+        fs.writeFileSync(outputPath, md, 'utf-8');
+        console.error(chalk.red(`\n✖ Could not connect to node. A partial failure report has been generated at: ${outputPath}`));
       }
     });
 
