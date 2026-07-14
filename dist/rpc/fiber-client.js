@@ -15,11 +15,8 @@ class FiberClient {
             jsonrpc: '2.0',
             id: 1,
             method,
+            params,
         };
-        // Only include the 'params' key if it's a non-empty array or an object with keys.
-        if ((Array.isArray(params) && params.length > 0) || (typeof params === 'object' && !Array.isArray(params) && Object.keys(params).length > 0)) {
-            requestPayload.params = params;
-        }
         const { data } = await axios_1.default.post(this.url, requestPayload, { timeout: this.timeout });
         if (data.error) {
             console.log({
@@ -32,19 +29,31 @@ class FiberClient {
         return data.result;
     }
     async listPayments() {
-        return this.call('list_payments', {});
+        // This method expects a parameter object inside a positional array.
+        // We normalize the response to ensure it's always an array.
+        const result = await this.call('list_payments', [{}]);
+        return Array.isArray(result) ? result : result.payments ?? [];
     }
     async getPayment(paymentHash) {
         return this.call('get_payment', { payment_hash: paymentHash });
     }
     async listChannels() {
-        return this.call('list_channels', {});
+        // Per API documentation, this method expects filter options inside a positional array.
+        // We also normalize the response to handle potentially wrapped objects.
+        const result = await this.call('list_channels', [{
+                include_closed: false,
+                only_pending: false,
+            }]);
+        return Array.isArray(result) ? result : result.channels ?? [];
     }
     async listPeers() {
-        return this.call('list_peers', []); // This method expects positional params
+        // This method expects positional params and may return a wrapped response.
+        const result = await this.call('list_peers', []);
+        return Array.isArray(result) ? result : result.peers ?? [];
     }
     async nodeInfo() {
-        return this.call('node_info', []);
+        const result = await this.call('node_info', []);
+        return Array.isArray(result) ? result[0] : result;
     }
 }
 exports.FiberClient = FiberClient;
