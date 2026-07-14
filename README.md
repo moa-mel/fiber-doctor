@@ -32,8 +32,22 @@ fiber-doctor diagnose [options]
 
 **Example:**
 
-```bash
-fiber-doctor diagnose --rpc-url http://127.0.0.1:8227
+```sh
+$ fiber-doctor diagnose
+```
+
+**Example Output:**
+
+```
+⚡ Running Suite on Core Node Protocol Endpoint: http://127.0.0.1:8227
+
+--- Node Health Report ---
+Node Status:  ✔ Running
+Channels:     1 open, 0 pending
+Alerts Flagged: None
+Health Score: 100/100
+
+✔ All evaluated runtime primitives conform to networking specifications!
 ```
 
 ### `report`
