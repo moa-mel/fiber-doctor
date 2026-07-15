@@ -1,12 +1,11 @@
-import { DiagnosticResult } from '../diagnostics/node';
+import { DiagnosticResult, Peer, Channel } from '../diagnostics/node';
 
-export function checkOfflinePeers(peers: any[], channels: any[]): DiagnosticResult[] {
+export function checkOfflinePeers(peers: Peer[], channels: Channel[]): DiagnosticResult[] {
   const results: DiagnosticResult[] = [];
 
-  // Filter for peers that are explicitly marked as connected.
-  const activePeerPubkeys = new Set(
-    peers.filter(p => p.connected === true).map(p => p.pubkey || p.peer_id)
-  );
+  // For this node version, the `list_peers` RPC only returns connected peers.
+  // The array itself is the list of active peers.
+  const activePeerPubkeys = new Set(peers.map(p => p.pubkey || p.peer_id));
 
   // Use the same robust state checking we implemented for channel metrics.
   const READY_STATES = new Set([
@@ -17,7 +16,10 @@ export function checkOfflinePeers(peers: any[], channels: any[]): DiagnosticResu
 
   for (const channel of channels) {
     const peerPubkey = channel.pubkey || channel.peer_id;
-    const stateName = channel.state?.state_name || channel.state;
+    // Safely determine the state name, whether it's a direct string or a nested object.
+    const stateName = (typeof channel.state === 'object' && channel.state !== null)
+      ? channel.state.state_name
+      : channel.state;
 
     if (READY_STATES.has(stateName) && !activePeerPubkeys.has(peerPubkey)) {
       results.push({

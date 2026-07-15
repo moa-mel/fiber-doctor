@@ -58,7 +58,10 @@ class NodeDiagnostics {
             // Silently fail on payments as it's less critical for a general health check.
             return [];
         });
-        const lastFailed = payments.filter((p) => p.status === 'Failed').pop();
+        const lastFailed = payments
+            .filter((p) => p.status?.toLowerCase() === 'failed')
+            .sort((a, b) => b.created_at - a.created_at) // Sort by most recent
+            .shift(); // Get the most recent failed payment
         // Run rules engine
         checks.push(...(0, peer_offline_1.checkOfflinePeers)(peers, channels));
         const liquidityIssue = (0, insufficient_liquidity_1.checkOutboundLiquidity)(channels, lastFailed);

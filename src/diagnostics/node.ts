@@ -3,6 +3,7 @@ import { checkOfflinePeers } from '../rules/peer-offline';
 import { checkNodeSync } from '../rules/node-synced';
 import { checkOutboundLiquidity } from '../rules/insufficient-liquidity';
 import { checkRoutingTopology } from '../rules/routing';
+import { checkPeerLatency } from '../rules/peer-latency';
 
 export interface DiagnosticResult {
   id: string;
@@ -13,6 +14,31 @@ export interface DiagnosticResult {
   reason?: string;
   educationalExplanation?: string;
   recommendations: string[];
+}
+
+/** Basic interfaces to improve type safety when processing RPC responses. */
+export interface Peer {
+  pubkey: string;
+  peer_id: string;
+  connected: boolean;
+  ping_time?: number;
+  state?: string;
+  last_seen_at?: number; // Unix timestamp
+}
+
+export interface Channel {
+  pubkey: string;
+  peer_id: string;
+  state: string | { state_name: string };
+  local_balance?: string;
+}
+
+export interface Payment {
+  status: 'succeeded' | 'failed' | 'pending' | 'Succeeded' | 'Failed' | 'Pending';
+  payment_hash: string;
+  amount?: string;
+  error_code?: string | null;
+  created_at: number; // Assuming a timestamp for sorting
 }
 
 export class NodeDiagnostics {
@@ -45,7 +71,7 @@ export class NodeDiagnostics {
       throw error;
     }
 
-    const peers = await this.client.listPeers().catch(err => {
+    const peers: Peer[] = await this.client.listPeers().catch(err => {
       console.error("DEBUG: Failed to list peers", err); // Keep for debugging
       checks.push({
         id: 'PEER_FETCH_FAIL',
@@ -71,11 +97,14 @@ export class NodeDiagnostics {
       return [];
     });
 
-    const payments = await this.client.listPayments().catch(() => {
+    const payments: Payment[] = await this.client.listPayments().catch(() => {
       // Silently fail on payments as it's less critical for a general health check.
       return [];
     });
-    const lastFailed = payments.filter((p: any) => p.status === 'Failed').pop();
+    const lastFailed = payments
+      .filter((p) => p.status?.toLowerCase() === 'failed')
+      .sort((a, b) => b.created_at - a.created_at) // Sort by most recent
+      .shift(); // Get the most recent failed payment
 
     // Run rules engine
     checks.push(...checkOfflinePeers(peers, channels));
